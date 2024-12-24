@@ -1,3 +1,7 @@
+#########################
+# This file is used to web scrape from Zillow.com for property information.
+#########################
+
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -12,6 +16,7 @@ def scrape_town(total_homes, url, city_name, isSold):
 
     # parse the scraped result
     parsed = BeautifulSoup(sale_page.text, 'html.parser')
+    print(parsed)
 
     # NOT NEEDED IN FINAL RESULT
     # storing in a txt file to check
@@ -20,6 +25,9 @@ def scrape_town(total_homes, url, city_name, isSold):
 
     # finding the one line with all houses
     sale_homes = parsed.find('script', id='__NEXT_DATA__')
+    if sale_homes == None:
+        print("\nno houses found.")
+        return
     homes_listed = sale_homes.string
     homes_this_page = homes_listed.count("detailUrl")
     total_homes += homes_this_page
@@ -77,6 +85,8 @@ def scrape_details(city, isSold):
         if isSold:
             # filter to the relevant line of code
             info = parsed_details.find('script', id='__NEXT_DATA__')
+            if info == None:
+                continue
             info_string = info.string
             
             # add bedroom and bathroom counts
@@ -101,6 +111,8 @@ def scrape_details(city, isSold):
             sold_date_end = tmp_info_string.find("time")
             sold_pr_start = tmp_info_string.find("price")
             sold_pr_end = tmp_info_string.find("pricePer")
+            if not tmp_info_string[sold_pr_start+8:sold_pr_end-3].isdigit():
+                continue
 
             # enter all info to the csv file
             curr_home_info = info_string[bd_start+11:bd_end-3] + "," + info_string[br_start+12:br_end-3] + "," + info_string[sf_start+18:sf_end-3] + "," + info_string[area_start+10:area_end-3] + "," + tmp_info_string[sold_date_start+9:sold_date_end-5] + "," + tmp_info_string[sold_pr_start+8:sold_pr_end-3] + "\n"
@@ -120,42 +132,3 @@ def to_spreadsheet(city):
     with pd.ExcelWriter('/Users/josephjia/Downloads/test_data.xlsx') as writer:
         file.to_excel(writer, sheet_name = 'Sheet1')
     return
-
-def main():
-    # ask for location
-    loc = input("Enter a city and state abreviation (city,state): ")
-    sep = loc.find(',')
-    city = loc[:sep]
-    state = loc[sep+1:]
-
-    # create initial search link
-    sale_url = "https://www.zillow.com/"+city+"-"+state
-    sold_url = "https://www.zillow.com/"+city+"-"+state+"/sold"
-
-    # clear text files if they exist
-    sold_file_name = city + "-sold.txt"
-    details_file_name = city + "-details.csv"
-    sold_file = open(sold_file_name, "w")
-    details_file = open(details_file_name, "w")
-    sold_file.close()
-    details_file.close()
-
-    print("start scrapping homes in " + city + ", " + state + "...")
-
-    # scrape for all houses
-    # scrape_town(sale_url, city, False) # for on sale houses
-    scrape_town(0, sold_url, city, True) # for sold houses
-
-    print("done scrapping homes in " + city + ", " + state + "...")
-    print("start scrapping home details in " + city + ", " + state + "...")
-
-    # scrape for house details
-    # scrape_details(city, False) # for on sale houses
-    scrape_details(city, True) # for sold houses
-
-    print("done scrapping home details in " + city + ", " + state + "...")
-    to_spreadsheet(city)
-    return
-
-if __name__ == "__main__":
-    main()
